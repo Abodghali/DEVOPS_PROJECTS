@@ -1,0 +1,51 @@
+---
+- name: Configure an Ubuntu operations web node
+  hosts: web
+  become: true
+  tasks:
+    - name: Install Nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+    - name: Install lab site configuration
+      ansible.builtin.copy:
+        dest: /etc/nginx/sites-available/default
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          server {
+              listen 80 default_server;
+              server_name _;
+              server_tokens off;
+              location = /healthz {
+                  default_type text/plain;
+                  return 200 'ok';
+              }
+              location / {
+                  default_type text/plain;
+                  return 200 'Operations lab web node';
+              }
+          }
+      notify: Reload nginx
+    - name: Validate Nginx configuration
+      ansible.builtin.command: nginx -t
+      changed_when: false
+    - name: Enable and start Nginx
+      ansible.builtin.service:
+        name: nginx
+        enabled: true
+        state: started
+    - name: Apply configuration before health check
+      ansible.builtin.meta: flush_handlers
+    - name: Verify local health endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1/healthz
+        status_code: 200
+  handlers:
+    - name: Reload nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded

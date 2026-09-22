@@ -1,0 +1,11 @@
+groups:
+  - name: ops-api
+    rules:
+      - alert: OpsApiDown
+        expr: up{job="ops-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Operations API cannot be scraped"
+          description: "Check container state, logs, networking and /healthz."

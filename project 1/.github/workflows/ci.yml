@@ -1,0 +1,39 @@
+name: Operations lab checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m unittest discover -s docker/tests -v
+      - run: docker compose -f docker/compose.yaml config --quiet
+      - run: docker compose -f docker/compose.yaml up -d --build --wait
+      - run: curl --fail --retry 5 --retry-connrefused http://127.0.0.1:8080/healthz
+      - if: always()
+        run: docker compose -f docker/compose.yaml logs
+      - if: always()
+        run: docker compose -f docker/compose.yaml down
+  infrastructure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.8'
+      - run: terraform -chdir=terraform fmt -check
+      - run: terraform -chdir=terraform init -backend=false
+      - run: terraform -chdir=terraform validate
+      - run: kubectl kustomize kubernates > /tmp/ops-manifests.yaml
+      - run: docker compose -f monitoring/compose.yaml config --quiet
+      - run: docker compose -f monitoring/compose.yaml run --rm --no-deps --entrypoint promtool prometheus check config /etc/prometheus/prometheus.yml
+      - run: pip install ansible-core==2.18.6
+      - run: ansible-playbook -i ansible/inventory.ini.example ansible/playbook.yml --syntax-check
+      - run: bash -n automation/backup.sh automation/restore.sh automation/triage.sh
+      - name: Backup and restore round trip
+        shell: bash
+        run: bash automation/test-backup.sh

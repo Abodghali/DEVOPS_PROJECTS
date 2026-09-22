@@ -1,0 +1,13 @@
+.env
+.secrets/
+__pycache__/
+*.pyc
+.terraform/
+*.tfstate*
+*.tfvars
+!*.tfvars.example
+*.tfplan
+backups/
+ansible/inventory.ini
+rendered.yaml
+.venv/

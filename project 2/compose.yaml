@@ -1,0 +1,56 @@
+name: orderflow
+x-app: &app
+  build: .
+  image: orderflow:dev
+  environment:
+    PGHOST: db
+    DB_PASSWORD_FILE: /run/secrets/db_password
+    API_TOKEN_FILE: /run/secrets/api_token
+  secrets: [db_password, api_token]
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+services:
+  db:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_USER: orders
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password]
+    volumes: ["db-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U orders -d orders"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  migrate:
+    <<: *app
+    command: [python, db.py]
+    depends_on:
+      db:
+        condition: service_healthy
+  api:
+    <<: *app
+    ports: ["127.0.0.1:8082:8080"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8080/readyz', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  worker:
+    <<: *app
+    command: [python, worker.py]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+volumes:
+  db-data:
+secrets:
+  db_password:
+    file: .secrets/db_password
+  api_token:
+    file: .secrets/api_token
