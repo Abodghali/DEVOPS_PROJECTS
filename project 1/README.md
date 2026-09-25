@@ -1,29 +1,29 @@
 # DevOps Operations Lab
 
-مشاريع عملية للتدريب على مهام Junior DevOps Engineer. ابدأ بـDocker ثم Kubernetes ثم المراقبة، وبعدها الأتمتة والبنية السحابية. ملفات التشغيل والتوثيق التقني بالإنجليزية لتناسب العمل ضمن فريق دولي.
+Hands-on projects for practicing Junior DevOps Engineer tasks. Start with Docker, then Kubernetes, monitoring, and finally automation and cloud infrastructure. Runtime files and technical documentation are kept in English to suit working within an international team.
 
-| المجلد | المشروع | المهارات |
+| Folder | Project | Skills |
 | --- | --- | --- |
-| [docker](docker/README.md) | خدمة HTTP داخل حاوية محدودة الصلاحيات | Dockerfile, Compose, health checks, logs |
-| [kubernates](kubernates/README.md) | نشر الخدمة بنسختين وتحديث تدريجي | Kubernetes, Kustomize, probes, rollback |
-| [ci-cd](ci-cd/README.md) | فحص الكود والبنية وبناء الحاوية | GitHub Actions, tests, release procedure |
-| [terraform](terraform/README.md) | مخزن نسخ احتياطي خاص على AWS | S3, encryption, versioning, TLS, IaC |
-| [ansible](ansible/README.md) | تجهيز خادم Ubuntu بخدمة Nginx | configuration management, handlers, idempotency |
-| [monitoring](monitoring/README.md) | مراقبة الخدمة وإنذار التوقف | Prometheus, PromQL, incident triage |
-| [automation](automation/README.md) | نسخ الملفات واسترجاعها وتشخيص Linux | Bash, checksums, backup verification |
+| [docker](docker/README.md) | HTTP service inside an unprivileged container | Dockerfile, Compose, health checks, logs |
+| [kubernates](kubernates/README.md) | Deploying the service with two replicas and rolling updates | Kubernetes, Kustomize, probes, rollback |
+| [ci-cd](ci-cd/README.md) | Code and infrastructure linting and container build | GitHub Actions, tests, release procedure |
+| [terraform](terraform/README.md) | Private backup storage on AWS | S3, encryption, versioning, TLS, IaC |
+| [ansible](ansible/README.md) | Provisioning an Ubuntu server with Nginx service | configuration management, handlers, idempotency |
+| [monitoring](monitoring/README.md) | Service monitoring and outage alerting | Prometheus, PromQL, incident triage |
+| [automation](automation/README.md) | File backup, restoration, and Linux diagnostics | Bash, checksums, backup verification |
 
-## البداية على Windows
+## Getting Started on Windows
 
-شغّل Docker Desktop بوضع Linux containers، ثم نفّذ من هذا المجلد:
+Run Docker Desktop in Linux containers mode, then execute from this directory:
 
 ```powershell
 docker compose -f docker/compose.yaml up -d --build --wait
 curl.exe http://localhost:8080/healthz
 ```
 
-تحتاج مشاريع Bash وAnsible إلى Linux أو WSL. يحتاج Kubernetes إلى عنقود محلي مثل kind. يحتاج Terraform إلى حساب AWS وبيانات اعتماد عبر ملف تعريف أو SSO؛ تنفيذ apply ينشئ موارد قد تترتب عليها تكلفة.
+Bash and Ansible projects require Linux or WSL. Kubernetes requires a local cluster such as kind. Terraform requires an AWS account and credentials via a profile or SSO; running apply creates resources that may incur costs.
 
-هذه مختبرات محلية وليست خدمة إنتاج عامة: الـAPI يستخدم خادم Python البسيط، ولا توجد بوابة TLS أو مصادقة للمستخدمين. لا تتضمن الملفات مفاتيح وصول أو ادعاءات بخبرة إنتاجية.
+These are local labs and not a public production service: the API uses Python's simple HTTP server, and there is no TLS gateway or user authentication. The files do not contain access keys or claims of production expertise.
 
 ## Architecture
 
@@ -40,6 +40,7 @@ flowchart LR
   Ansible[Ansible] --> Ubuntu[Ubuntu Nginx lab node]
 ```
 
-## كيف تعرض العمل في المقابلة
+## How to Present Your Work in an Interview
 
-شغّل كل مشروع، نفّذ تمرين العطل، واحتفظ بنتائجك الفعلية: أوامر التشغيل، سبب العطل، طريقة التشخيص، وطريقة الإصلاح. اشرح سبب استخدام readiness مقابل liveness، وحدود النسخ الاحتياطي، والفرق بين Terraform وAnsible. راجع [سجل التحقق](VALIDATION.md) لمعرفة ما تم اختباره محليًا.
+Run each project, perform the failure exercise, and keep your actual results: run commands, root cause of the failure, diagnostic steps, and fix procedure. Explain why readiness vs liveness probes were used, backup limitations, and the difference between Terraform and Ansible. Refer to the [Validation Record](VALIDATION.md) to see what was tested locally.
+
