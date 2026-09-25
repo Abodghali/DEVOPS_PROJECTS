@@ -1,0 +1,138 @@
+stages:
+- test
+- build
+- scan
+- deploy
+unit:
+  stage: test
+  image: python:3.13-slim
+  script:
+  - pip install -r requirements.txt PyYAML==6.0.2
+  - python -m unittest discover -s tests -v
+  - python -m compileall -q app scripts tests
+  - for file in scripts/*.sh; do bash -n "$file" || exit 1; done
+  rules: &id001
+  - if: $CI_PIPELINE_SOURCE != "schedule"
+  tags:
+  - docker-build
+infrastructure:
+  stage: test
+  image:
+    name: hashicorp/terraform:1.11.4
+    entrypoint:
+    - ''
+  script:
+  - terraform -chdir=terraform init -backend=false
+  - terraform -chdir=terraform validate
+  rules: *id001
+  tags:
+  - docker-build
+ansible:
+  stage: test
+  image: python:3.13-slim
+  script:
+  - pip install ansible-core==2.18.6
+  - ansible-playbook -i ansible/inventory.ini.example ansible/playbook.yml --syntax-check
+  rules: *id001
+  tags:
+  - docker-build
+build:
+  stage: build
+  image: docker:28.3.3-cli
+  tags:
+  - docker-build
+  services:
+  - name: docker:28.3.3-dind
+    alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: /certs
+    DOCKER_TLS_VERIFY: '1'
+    DOCKER_CERT_PATH: /certs/client
+  before_script:
+  - apk add --no-cache bash openssl
+  rules:
+  - if: $CI_PIPELINE_SOURCE != "schedule"
+  script:
+  - bash scripts/init-secrets.sh
+  - docker compose up -d --build --wait --wait-timeout 240
+  - bash scripts/smoke.sh
+  - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER"
+    --password-stdin
+  - docker tag preview-environments-platform-app:dev "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+  - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+  after_script:
+  - docker compose logs --tail=30
+  - docker compose down -v
+scan:
+  stage: scan
+  image:
+    name: aquasec/trivy:0.66.0
+    entrypoint:
+    - ''
+  variables:
+    TRIVY_USERNAME: $CI_REGISTRY_USER
+    TRIVY_PASSWORD: $CI_REGISTRY_PASSWORD
+  script:
+  - trivy image --exit-code 1 --severity HIGH,CRITICAL "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+  rules: *id001
+  tags:
+  - docker-build
+workflow:
+  rules:
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_SOURCE_PROJECT_ID
+      == $CI_PROJECT_ID
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+  - when: never
+deploy-review:
+  stage: deploy
+  tags:
+  - preview-deploy
+  resource_group: review-$CI_PROJECT_ID-$CI_MERGE_REQUEST_IID
+  environment:
+    name: review/$CI_MERGE_REQUEST_IID
+    url: $REVIEW_URL
+    on_stop: stop-review
+    auto_stop_in: 1 day
+  script:
+  - export KUBECONFIG="$KUBE_CONFIG"
+  - export IMAGE="$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+  - bash scripts/preview.sh deploy
+  rules:
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  artifacts:
+    reports:
+      dotenv: results/review.env
+    paths:
+    - scripts/preview.sh
+    - scripts/render.py
+    expire_in: 7 days
+stop-review:
+  stage: deploy
+  tags:
+  - preview-deploy
+  resource_group: review-$CI_PROJECT_ID-$CI_MERGE_REQUEST_IID
+  variables:
+    GIT_STRATEGY: none
+  needs:
+  - job: deploy-review
+    artifacts: true
+  script:
+  - export KUBECONFIG="$KUBE_CONFIG"
+  - bash scripts/preview.sh stop
+  environment:
+    name: review/$CI_MERGE_REQUEST_IID
+    action: stop
+  rules:
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    when: manual
+  allow_failure: true
+reconcile:
+  stage: deploy
+  tags:
+  - preview-deploy
+  script:
+  - export KUBECONFIG="$KUBE_CONFIG"
+  - python3 scripts/cleanup.py
+  rules:
+  - if: $CI_PIPELINE_SOURCE == "schedule"

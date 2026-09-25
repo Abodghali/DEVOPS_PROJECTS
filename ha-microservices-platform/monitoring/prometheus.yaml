@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 15s
+scrape_configs:
+- job_name: ha-microservices-platform
+  static_configs:
+  - targets:
+    - frontend:8080
+    - gateway:8080
+    - catalog:8080
+    - inventory:8080
+    - pricing:8080

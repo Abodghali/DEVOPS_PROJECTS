@@ -1,0 +1,15 @@
+gitlabUrl: https://gitlab.com
+concurrent: 4
+checkInterval: 3
+rbac:
+  create: true
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+runners:
+  secret: runner-auth
+  config: "[[runners]]\n  [runners.kubernetes]\n    namespace = \"build-runners\"\n\
+    \    image = \"python:3.13-slim\"\n    privileged = false\n    cpu_request = \"\
+    250m\"\n    cpu_limit = \"2\"\n    memory_request = \"256Mi\"\n    memory_limit\
+    \ = \"2Gi\"\n    poll_timeout = 180\n"

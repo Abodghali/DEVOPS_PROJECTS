@@ -1,0 +1,20 @@
+name: log-pipeline
+services:
+  pipeline:
+    build: .
+    image: log-pipeline:dev
+    user: "${LOCAL_UID:-10001}:${LOCAL_GID:-10001}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - ./data:/input:ro
+      - ./output:/output
+  reports:
+    image: python:3.13-slim
+    user: "${LOCAL_UID:-10001}:${LOCAL_GID:-10001}"
+    command: [python, -m, http.server, '8080', --directory, /output]
+    read_only: true
+    cap_drop: [ALL]
+    ports: ["127.0.0.1:8085:8080"]
+    volumes: ["./output:/output:ro"]

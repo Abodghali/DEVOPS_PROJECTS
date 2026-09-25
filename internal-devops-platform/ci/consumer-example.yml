@@ -1,0 +1,12 @@
+# Replace project path and pin a reviewed template release.
+include:
+  - project: your-group/internal-devops-platform
+    ref: v1.0.0
+    file: [/ci/templates/python.yml, /ci/templates/docker.yml]
+stages: [test, build, scan]
+test:
+  extends: .python-unit
+build:
+  extends: .docker-publish
+scan:
+  extends: .container-scan

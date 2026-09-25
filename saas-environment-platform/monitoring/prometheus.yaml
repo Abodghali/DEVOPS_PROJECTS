@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 15s
+scrape_configs:
+- job_name: saas-environment-platform
+  static_configs:
+  - targets:
+    - app-dev:8080
+    - app-staging:8080
+    - app-production:8080

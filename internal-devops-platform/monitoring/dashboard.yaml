@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: internal-devops-platform-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: '1'
+data:
+  project.json: '{"title": "internal-devops-platform", "uid": "internal-devops-platform",
+    "schemaVersion": 39, "version": 1, "refresh": "15s", "time": {"from": "now-1h",
+    "to": "now"}, "templating": {"list": [{"name": "environment", "type": "query",
+    "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(lab_requests_total,
+    environment)", "includeAll": true, "allValue": ".*", "current": {"text": "All",
+    "value": "$__all"}}, {"name": "namespace", "type": "query", "datasource": {"type":
+    "prometheus", "uid": "prometheus"}, "query": "label_values(kube_pod_info, namespace)",
+    "includeAll": true, "allValue": ".*", "current": {"text": "All", "value": "$__all"}}]},
+    "panels": [{"id": 1, "title": "Request rate", "type": "timeseries", "datasource":
+    {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"x": 0, "y": 0, "w":
+    12, "h": 8}, "targets": [{"expr": "sum(rate(lab_requests_total{environment=~\"$environment\"}[5m]))
+    by (service,environment)", "refId": "A"}]}, {"id": 2, "title": "p95 latency",
+    "type": "timeseries", "datasource": {"type": "prometheus", "uid": "prometheus"},
+    "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8}, "targets": [{"expr": "histogram_quantile(0.95,sum(rate(lab_request_duration_seconds_bucket{environment=~\"$environment\"}[5m]))
+    by (le,service,environment))", "refId": "A"}]}, {"id": 3, "title": "HTTP errors",
+    "type": "timeseries", "datasource": {"type": "prometheus", "uid": "prometheus"},
+    "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8}, "targets": [{"expr": "sum(rate(lab_requests_total{status=~\"5..\",environment=~\"$environment\"}[5m]))
+    by (service)", "refId": "A"}]}, {"id": 4, "title": "Pod CPU", "type": "timeseries",
+    "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"x": 12,
+    "y": 8, "w": 12, "h": 8}, "targets": [{"expr": "sum(rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\",container!=\"\"}[5m]))
+    by (pod)", "refId": "A"}]}, {"id": 5, "title": "Pod memory", "type": "timeseries",
+    "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"x": 0,
+    "y": 16, "w": 12, "h": 8}, "targets": [{"expr": "sum(container_memory_working_set_bytes{namespace=~\"$namespace\",container!=\"\"})
+    by (pod)", "refId": "A"}]}, {"id": 6, "title": "Pod restarts", "type": "timeseries",
+    "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"x": 12,
+    "y": 16, "w": 12, "h": 8}, "targets": [{"expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[15m]))
+    by (pod)", "refId": "A"}]}, {"id": 7, "title": "Recent pipeline outcomes", "type":
+    "timeseries", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos":
+    {"x": 0, "y": 24, "w": 12, "h": 8}, "targets": [{"expr": "gitlab_recent_pipelines",
+    "refId": "A"}]}, {"id": 8, "title": "Pipeline duration", "type": "timeseries",
+    "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"x": 12,
+    "y": 24, "w": 12, "h": 8}, "targets": [{"expr": "gitlab_recent_duration_seconds",
+    "refId": "A"}]}, {"id": 9, "title": "Queue age", "type": "timeseries", "datasource":
+    {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"x": 0, "y": 32, "w":
+    12, "h": 8}, "targets": [{"expr": "gitlab_oldest_pending_seconds", "refId": "A"}]},
+    {"id": 10, "title": "Runner online", "type": "timeseries", "datasource": {"type":
+    "prometheus", "uid": "prometheus"}, "gridPos": {"x": 12, "y": 32, "w": 12, "h":
+    8}, "targets": [{"expr": "gitlab_runner_online", "refId": "A"}]}, {"id": 11, "title":
+    "Host disk free", "type": "timeseries", "datasource": {"type": "prometheus", "uid":
+    "prometheus"}, "gridPos": {"x": 0, "y": 40, "w": 12, "h": 8}, "targets": [{"expr":
+    "node_filesystem_avail_bytes{mountpoint=\"/\"}", "refId": "A"}]}, {"id": 12, "title":
+    "Host CPU", "type": "timeseries", "datasource": {"type": "prometheus", "uid":
+    "prometheus"}, "gridPos": {"x": 12, "y": 40, "w": 12, "h": 8}, "targets": [{"expr":
+    "1-avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) by (instance)", "refId":
+    "A"}]}, {"id": 13, "title": "Host memory", "type": "timeseries", "datasource":
+    {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"x": 0, "y": 48, "w":
+    12, "h": 8}, "targets": [{"expr": "1-node_memory_MemAvailable_bytes/node_memory_MemTotal_bytes",
+    "refId": "A"}]}, {"id": 14, "title": "Runner job duration", "type": "timeseries",
+    "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"x": 12,
+    "y": 48, "w": 12, "h": 8}, "targets": [{"expr": "histogram_quantile(0.95,sum(rate(gitlab_runner_job_duration_seconds_bucket[5m]))
+    by (le))", "refId": "A"}]}]}'

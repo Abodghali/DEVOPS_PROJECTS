@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: connection-pressure-
+  namespace: microservices
+spec:
+  ttlSecondsAfterFinished: 600
+  activeDeadlineSeconds: 45
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      containers:
+      - name: pressure
+        image: postgres:17.6-alpine
+        command:
+        - sh
+        - -c
+        - for i in $(seq 1 60); do psql -h products-db-rw -U app -d app -c "SELECT
+          pg_sleep(20);" & done; wait
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: DB_PASSWORD
+        resources:
+          limits:
+            cpu: '1'
+            memory: 256Mi

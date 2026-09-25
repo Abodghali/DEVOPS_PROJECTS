@@ -1,0 +1,26 @@
+name: release-switchboard
+x-app: &app
+  build: .
+  image: release-switchboard:dev
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  healthcheck:
+    test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz', timeout=2)"]
+    interval: 3s
+    timeout: 3s
+    retries: 10
+services:
+  blue:
+    <<: *app
+    environment: {RELEASE: blue}
+  green:
+    <<: *app
+    environment: {RELEASE: green}
+  gateway:
+    image: nginx:1.28-alpine
+    ports: ["127.0.0.1:8083:8080"]
+    volumes: ["./gateway:/etc/nginx/conf.d:ro"]
+    depends_on:
+      blue: {condition: service_healthy}
+      green: {condition: service_healthy}

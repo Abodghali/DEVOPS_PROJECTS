@@ -1,0 +1,148 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: reports
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: events
+data:
+  events.jsonl: '{"status":200,"duration_ms":25}
+
+    {"status":201,"duration_ms":35}
+
+    {"status":503,"duration_ms":90}
+
+    {"status":"broken","duration_ms":12}
+
+    '
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: aggregate
+spec:
+  schedule: '*/5 * * * *'
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 120
+      template:
+        spec:
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: pipeline
+            image: log-pipeline:dev
+            imagePullPolicy: IfNotPresent
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                - ALL
+            resources:
+              requests:
+                cpu: 50m
+                memory: 32Mi
+              limits:
+                cpu: 500m
+                memory: 128Mi
+            volumeMounts:
+            - name: input
+              mountPath: /input
+              readOnly: true
+            - name: reports
+              mountPath: /output
+          restartPolicy: Never
+          volumes:
+          - name: input
+            configMap:
+              name: events
+          - name: reports
+            persistentVolumeClaim:
+              claimName: reports
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reports
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: reports
+  template:
+    metadata:
+      labels:
+        app: reports
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: reports
+        image: python:3.13-slim
+        command:
+        - python
+        - -m
+        - http.server
+        - '8080'
+        - --directory
+        - /output
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 25m
+            memory: 32Mi
+          limits:
+            cpu: 250m
+            memory: 128Mi
+        volumeMounts:
+        - name: reports
+          mountPath: /output
+          readOnly: true
+      volumes:
+      - name: reports
+        persistentVolumeClaim:
+          claimName: reports
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reports
+spec:
+  selector:
+    app: reports
+  ports:
+  - port: 80
+    targetPort: 8080

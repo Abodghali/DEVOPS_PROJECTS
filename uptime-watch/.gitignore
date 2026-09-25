@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.env
+.secrets/
+.terraform/
+*.tfstate*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+backups/
+output/
+.switch-lock/
+ansible/inventory.ini

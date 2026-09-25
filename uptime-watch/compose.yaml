@@ -1,0 +1,24 @@
+name: uptime-watch
+services:
+  monitor:
+    build: .
+    image: uptime-watch:dev
+    ports: ["127.0.0.1:8084:8080"]
+    volumes: ["checks:/data"]
+    environment: {INTERVAL: '2'}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz',timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+  demo:
+    image: python:3.13-slim
+    command: [python, -m, http.server, '8080']
+    user: '10001:10001'
+    read_only: true
+    cap_drop: [ALL]
+volumes:
+  checks:

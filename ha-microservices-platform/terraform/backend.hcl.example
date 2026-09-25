@@ -1,0 +1,5 @@
+bucket = "REPLACE-state-bucket"
+key = "ha-microservices-platform/cluster.tfstate"
+region = "eu-central-1"
+encrypt = true
+use_lockfile = true

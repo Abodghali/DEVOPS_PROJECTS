@@ -1,0 +1,120 @@
+- name: Prepare dedicated CI hosts
+  hosts: runners
+  become: true
+  vars:
+    gitlab_url: https://gitlab.com
+    runner_name: dedicated-lab-runner
+  tasks:
+  - name: Install Linux and container utilities
+    ansible.builtin.apt:
+      name:
+      - docker.io
+      - docker-compose-v2
+      - ca-certificates
+      - curl
+      - python3
+      - python3-pip
+      - jq
+      - postgresql-client
+      - prometheus-node-exporter
+      - logrotate
+      - python3-yaml
+      - python3-venv
+      state: present
+      update_cache: true
+      cache_valid_time: 3600
+  - name: Configure bounded Docker logs
+    ansible.builtin.copy:
+      dest: /etc/docker/daemon.json
+      mode: '0644'
+      content: '{"log-driver":"json-file","log-opts":{"max-size":"10m","max-file":"3"}}'
+    notify: Restart Docker
+  - name: Enable Docker and host metrics
+    ansible.builtin.service:
+      name: '{{ item }}'
+      enabled: true
+      state: started
+    loop:
+    - docker
+    - prometheus-node-exporter
+  - name: Install GitLab Runner repository setup script
+    ansible.builtin.get_url:
+      url: https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.deb.sh
+      dest: /usr/local/src/gitlab-runner-repository.sh
+      mode: '0700'
+  - name: Configure runner package repository
+    ansible.builtin.command: /usr/local/src/gitlab-runner-repository.sh
+    args:
+      creates: /etc/apt/sources.list.d/runner_gitlab-runner.list
+  - name: Install runner
+    ansible.builtin.apt:
+      name: gitlab-runner
+      state: present
+      update_cache: true
+  - name: Check whether a runner is registered
+    ansible.builtin.command: grep -q '\[\[runners\]\]' /etc/gitlab-runner/config.toml
+    register: runner_configured
+    changed_when: false
+    failed_when: runner_configured.rc not in [0, 1, 2]
+    no_log: true
+  - name: Register dedicated Docker executor when a token is supplied
+    ansible.builtin.command:
+      argv:
+      - gitlab-runner
+      - register
+      - --non-interactive
+      - --url
+      - '{{ gitlab_url }}'
+      - --name
+      - '{{ runner_name }}'
+      - --executor
+      - docker
+      - --docker-image
+      - python:3.13-slim
+      - --docker-privileged
+      - --docker-volumes
+      - /certs/client
+    environment:
+      CI_SERVER_TOKEN: '{{ runner_auth_token }}'
+    no_log: true
+    when: runner_auth_token is defined and runner_configured.rc != 0
+  - name: Enable runner metrics endpoint after registration
+    ansible.builtin.lineinfile:
+      path: /etc/gitlab-runner/config.toml
+      regexp: ^listen_address\s*=
+      line: listen_address = "0.0.0.0:9252"
+      insertbefore: BOF
+    when: runner_auth_token is defined
+    notify: Restart runner
+  - name: Install kubectl with checksum verification
+    ansible.builtin.get_url:
+      url: https://dl.k8s.io/release/v1.34.1/bin/linux/amd64/kubectl
+      dest: /usr/local/bin/kubectl
+      mode: '0755'
+      checksum: sha256:https://dl.k8s.io/release/v1.34.1/bin/linux/amd64/kubectl.sha256
+  - name: Download Helm archive
+    ansible.builtin.get_url:
+      url: https://get.helm.sh/helm-v3.19.0-linux-amd64.tar.gz
+      dest: /usr/local/src/helm.tar.gz
+      mode: '0644'
+      checksum: sha256:https://get.helm.sh/helm-v3.19.0-linux-amd64.tar.gz.sha256sum
+  - name: Extract Helm
+    ansible.builtin.unarchive:
+      src: /usr/local/src/helm.tar.gz
+      dest: /usr/local/src
+      remote_src: true
+  - name: Install Helm binary
+    ansible.builtin.copy:
+      src: /usr/local/src/linux-amd64/helm
+      dest: /usr/local/bin/helm
+      remote_src: true
+      mode: '0755'
+  handlers:
+  - name: Restart Docker
+    ansible.builtin.service:
+      name: docker
+      state: restarted
+  - name: Restart runner
+    ansible.builtin.service:
+      name: gitlab-runner
+      state: restarted

@@ -1,0 +1,23 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ha-microservices-platform
+  namespace: monitoring
+spec:
+  groups:
+  - name: ha-microservices-platform
+    rules:
+    - alert: ApplicationErrors
+      expr: sum by (namespace) (rate(lab_requests_total{status=~"5.."}[5m])) > 0.1
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: Application requests are failing
+    - alert: PodRestarting
+      expr: increase(kube_pod_container_status_restarts_total[10m]) > 2
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        summary: A pod restarted repeatedly

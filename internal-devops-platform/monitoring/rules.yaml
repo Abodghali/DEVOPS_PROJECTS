@@ -1,0 +1,45 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: internal-devops-platform
+  namespace: monitoring
+spec:
+  groups:
+  - name: internal-devops-platform
+    rules:
+    - alert: ApplicationErrors
+      expr: sum by (namespace) (rate(lab_requests_total{status=~"5.."}[5m])) > 0.1
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: Application requests are failing
+    - alert: PodRestarting
+      expr: increase(kube_pod_container_status_restarts_total[10m]) > 2
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        summary: A pod restarted repeatedly
+    - alert: RunnerOffline
+      expr: gitlab_runner_online == 0
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: GitLab reports an offline runner
+    - alert: PipelineQueueLong
+      expr: gitlab_oldest_pending_seconds > 300
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: Pipeline pending for more than five minutes
+    - alert: GitLabTelemetryStale
+      expr: gitlab_api_up == 0 or time()-gitlab_api_last_success_timestamp_seconds
+        > 120
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: GitLab API polling failed

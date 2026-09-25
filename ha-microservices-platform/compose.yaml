@@ -1,0 +1,199 @@
+name: ha-microservices-platform
+services:
+  db:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Run scripts/init-secrets.sh}
+    volumes:
+    - db:/var/lib/postgresql/data
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U app -d app
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  redis:
+    image: redis:7.4-alpine
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Run scripts/init-secrets.sh}
+    command:
+    - sh
+    - -c
+    - exec redis-server --save "" --appendonly no --requirepass "$$REDIS_PASSWORD"
+  migrate:
+    build:
+      context: .
+      args:
+        SERVICE: catalog
+    image: ha-microservices-platform-catalog:dev
+    environment:
+      PGHOST: db
+      DB_PASSWORD: ${DB_PASSWORD}
+    read_only: true
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
+    command:
+    - python
+    - migrate.py
+    depends_on:
+      db:
+        condition: service_healthy
+  frontend:
+    build:
+      context: .
+      args:
+        SERVICE: frontend
+    image: ha-microservices-platform-frontend:dev
+    environment:
+      SERVICE: frontend
+      ENVIRONMENT: local
+    read_only: true
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://localhost:8080/readyz',timeout=4)
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  gateway:
+    build:
+      context: .
+      args:
+        SERVICE: gateway
+    image: ha-microservices-platform-gateway:dev
+    environment:
+      SERVICE: gateway
+      ENVIRONMENT: local
+    read_only: true
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://localhost:8080/readyz',timeout=4)
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+    - 127.0.0.1:8093:8080
+  catalog:
+    build:
+      context: .
+      args:
+        SERVICE: catalog
+    image: ha-microservices-platform-catalog:dev
+    environment:
+      SERVICE: catalog
+      ENVIRONMENT: local
+      PGHOST: db
+      DB_PASSWORD: ${DB_PASSWORD}
+    read_only: true
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://localhost:8080/readyz',timeout=4)
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  inventory:
+    build:
+      context: .
+      args:
+        SERVICE: inventory
+    image: ha-microservices-platform-inventory:dev
+    environment:
+      SERVICE: inventory
+      ENVIRONMENT: local
+      PGHOST: db
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    read_only: true
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://localhost:8080/readyz',timeout=4)
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  pricing:
+    build:
+      context: .
+      args:
+        SERVICE: pricing
+    image: ha-microservices-platform-pricing:dev
+    environment:
+      SERVICE: pricing
+      ENVIRONMENT: local
+    read_only: true
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://localhost:8080/readyz',timeout=4)
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    volumes:
+    - ./monitoring/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+    ports:
+    - 127.0.0.1:9092:9090
+  grafana:
+    image: grafana/grafana:12.1.1
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?Run scripts/init-secrets.sh}
+    volumes:
+    - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+    - 127.0.0.1:3011:3000
+volumes:
+  db: {}

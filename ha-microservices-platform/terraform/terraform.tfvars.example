@@ -1,0 +1,5 @@
+name = "ha-microservices-platform"
+region = "eu-central-1"
+admin_cidr = "203.0.113.10/32"
+admin_principal_arn = "arn:aws:iam::123456789012:role/REPLACE"
+ssh_public_key = "ssh-ed25519 REPLACE"
